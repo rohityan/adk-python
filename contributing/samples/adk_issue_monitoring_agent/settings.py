@@ -13,9 +13,13 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+CURRENT_DIR = Path(__file__).resolve().parent
+ENV_PATH = CURRENT_DIR / ".env"
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 GITHUB_BASE_URL = "https://api.github.com"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
@@ -28,7 +32,9 @@ LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "gemini-2.5-flash")
 
 SPAM_LABEL_NAME = "spam"
 CONCURRENCY_LIMIT = int(os.getenv("CONCURRENCY_LIMIT", 3))
+BOT_NAME = os.getenv("BOT_NAME", "adk-bot")
 SLEEP_BETWEEN_CHUNKS = float(os.getenv("SLEEP_BETWEEN_CHUNKS", 1.5))
 
-# NEW: Toggle for the initial run
+
+# Toggle for the initial run
 INITIAL_FULL_SCAN = os.getenv("INITIAL_FULL_SCAN", "false").lower() == "true"

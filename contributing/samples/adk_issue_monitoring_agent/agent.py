@@ -15,26 +15,34 @@
 import logging
 import os
 from typing import Any
+
+from adk_issue_monitoring_agent.settings import GITHUB_BASE_URL
+from adk_issue_monitoring_agent.settings import LLM_MODEL_NAME
+from adk_issue_monitoring_agent.settings import OWNER
+from adk_issue_monitoring_agent.settings import REPO
+from adk_issue_monitoring_agent.settings import SPAM_LABEL_NAME
+from adk_issue_monitoring_agent.utils import error_response
+from adk_issue_monitoring_agent.utils import post_request
 from google.adk.agents.llm_agent import Agent
 from requests.exceptions import RequestException
 
-from adk_stale_agent.settings import (
-    GITHUB_BASE_URL, OWNER, REPO, LLM_MODEL_NAME, SPAM_LABEL_NAME
-)
-from adk_stale_agent.utils import post_request, error_response
-
 logger = logging.getLogger("google_adk." + __name__)
+
 
 def load_prompt_template(filename: str) -> str:
   file_path = os.path.join(os.path.dirname(__file__), filename)
   with open(file_path, "r") as f:
     return f.read()
 
+
 PROMPT_TEMPLATE = load_prompt_template("PROMPT_INSTRUCTION.txt")
 
 # --- Tools ---
 
-def flag_issue_as_spam(item_number: int, detection_reason: str) -> dict[str, Any]:
+
+def flag_issue_as_spam(
+    item_number: int, detection_reason: str
+) -> dict[str, Any]:
   """
   Flags an issue as spam by adding a label and leaving a comment for maintainers.
 
@@ -43,13 +51,17 @@ def flag_issue_as_spam(item_number: int, detection_reason: str) -> dict[str, Any
       detection_reason (str): The explanation of what the spam is.
   """
   logger.info(f"Flagging #{item_number} as SPAM. Reason: {detection_reason}")
-  
-  label_url = f"{GITHUB_BASE_URL}/repos/{OWNER}/{REPO}/issues/{item_number}/labels"
-  comment_url = f"{GITHUB_BASE_URL}/repos/{OWNER}/{REPO}/issues/{item_number}/comments"
-  
+
+  label_url = (
+      f"{GITHUB_BASE_URL}/repos/{OWNER}/{REPO}/issues/{item_number}/labels"
+  )
+  comment_url = (
+      f"{GITHUB_BASE_URL}/repos/{OWNER}/{REPO}/issues/{item_number}/comments"
+  )
+
   alert_body = (
-      f"🚨 **Automated Spam Detection Alert** 🚨\n"
-      f"@maintainers, a suspected spam comment was detected in this thread.\n\n"
+      "🚨 **Automated Spam Detection Alert** 🚨\n"
+      "@maintainers, a suspected spam comment was detected in this thread.\n\n"
       f"**Reason:** {detection_reason}"
   )
 
@@ -61,6 +73,7 @@ def flag_issue_as_spam(item_number: int, detection_reason: str) -> dict[str, Any
     return {"status": "success", "message": "Maintainers alerted successfully."}
   except RequestException as e:
     return error_response(f"Error flagging issue: {e}")
+
 
 root_agent = Agent(
     model=LLM_MODEL_NAME,

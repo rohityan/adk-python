@@ -14,34 +14,45 @@
 
 import logging
 import threading
-from typing import Any, Dict, List
+from typing import Any
+from typing import Dict
+from typing import List
+
+from adk_issue_monitoring_agent.settings import GITHUB_TOKEN
+from adk_issue_monitoring_agent.settings import INITIAL_FULL_SCAN
+from adk_issue_monitoring_agent.settings import SPAM_LABEL_NAME
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from adk_stale_agent.settings import GITHUB_TOKEN
 
 logger = logging.getLogger("google_adk." + __name__)
 
 _api_call_count = 0
 _counter_lock = threading.Lock()
 
+
 def get_api_call_count() -> int:
   with _counter_lock:
     return _api_call_count
+
 
 def reset_api_call_count() -> None:
   global _api_call_count
   with _counter_lock:
     _api_call_count = 0
 
+
 def _increment_api_call_count() -> None:
   global _api_call_count
   with _counter_lock:
     _api_call_count += 1
 
+
 retry_strategy = Retry(
-    total=6, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504],
-    allowed_methods=["GET", "POST", "PATCH", "DELETE"]
+    total=6,
+    backoff_factor=2,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["GET", "POST", "PATCH", "DELETE"],
 )
 adapter = HTTPAdapter(max_retries=retry_strategy)
 _session = requests.Session()
@@ -51,11 +62,13 @@ _session.headers.update({
     "Accept": "application/vnd.github.v3+json",
 })
 
+
 def get_request(url: str, params: Dict[str, Any] = None) -> Any:
   _increment_api_call_count()
   response = _session.get(url, params=params or {}, timeout=60)
   response.raise_for_status()
   return response.json()
+
 
 def post_request(url: str, payload: Any) -> Any:
   _increment_api_call_count()
@@ -63,8 +76,10 @@ def post_request(url: str, payload: Any) -> Any:
   response.raise_for_status()
   return response.json()
 
+
 def error_response(error_message: str) -> Dict[str, Any]:
   return {"status": "error", "message": error_message}
+
 
 def get_repository_maintainers(owner: str, repo: str) -> List[str]:
   """Fetches all users with push/maintain access."""
@@ -72,19 +87,46 @@ def get_repository_maintainers(owner: str, repo: str) -> List[str]:
   data = get_request(url, {"permission": "push"})
   return [user["login"] for user in data]
 
+
+def get_issue_details(
+    owner: str, repo: str, issue_number: int
+) -> Dict[str, Any]:
+  """Fetches the main issue object to get the original description (body)."""
+  url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
+  return get_request(url)
+
+
 def get_issue_comments(owner: str, repo: str, issue_number: int) -> List[Dict]:
-  """Fetches all comments for a specific issue via REST."""
+  """Fetches ALL comments for a specific issue, handling pagination."""
   url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
-  return get_request(url, params={"per_page": 100})
+  all_comments = []
+  page = 1
+
+  while True:
+    data = get_request(url, params={"per_page": 100, "page": page})
+    if not data:
+      break
+
+    all_comments.extend(data)
+
+    if len(data) < 100:
+      break
+    page += 1
+
+  return all_comments
+
 
 def get_target_issues(owner: str, repo: str) -> List[int]:
   """
-  Fetches issues. 
+  Fetches issues.
   If INITIAL_FULL_SCAN is True, fetches ALL open issues.
   If False, fetches only issues updated in the last 24 hours using the 'since' parameter.
   """
-  from adk_stale_agent.settings import INITIAL_FULL_SCAN
-  from datetime import datetime, timedelta, timezone
+  from datetime import datetime
+  from datetime import timedelta
+  from datetime import timezone
+
+  from adk_issue_monitoring_agent.settings import INITIAL_FULL_SCAN
 
   url = f"https://api.github.com/repos/{owner}/{repo}/issues"
   params = {
@@ -93,11 +135,13 @@ def get_target_issues(owner: str, repo: str) -> List[int]:
   }
 
   if INITIAL_FULL_SCAN:
-      logger.info("INITIAL_FULL_SCAN is True. Fetching ALL open issues...")
+    logger.info("INITIAL_FULL_SCAN is True. Fetching ALL open issues...")
   else:
-      yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-      params["since"] = yesterday
-      logger.info(f"Daily mode: Fetching issues updated since {yesterday}...")
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    params["since"] = yesterday
+    logger.info(f"Daily mode: Fetching issues updated since {yesterday}...")
 
   issue_numbers = []
   page = 1
@@ -106,19 +150,27 @@ def get_target_issues(owner: str, repo: str) -> List[int]:
     params["page"] = page
     try:
       items = get_request(url, params=params)
-      
-      if not items: 
-          break
-      
+
+      if not items:
+        break
+
       for item in items:
-        # The Issues API returns both Issues and Pull Requests.
-        # We check for the 'pull_request' key to filter PRs out if we only want issues.
         if "pull_request" not in item:
           issue_numbers.append(item["number"])
-          
-      if len(items) < 100: 
-          break  # Reached the last page
-          
+          # Extract all the label names on this issue
+          current_labels = [label["name"] for label in item.get("labels", [])]
+
+          # Only add the issue if it DOES NOT already have the spam label
+          if SPAM_LABEL_NAME not in current_labels:
+            issue_numbers.append(item["number"])
+          else:
+            logger.debug(
+                f"Skipping #{item['number']} - already marked as spam."
+            )
+
+      if len(items) < 100:
+        break  # Reached the last page
+
       page += 1
     except requests.exceptions.RequestException as e:
       logger.error(f"Failed to fetch issues on page {page}: {e}")
