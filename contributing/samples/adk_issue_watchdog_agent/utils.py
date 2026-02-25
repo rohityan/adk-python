@@ -1,0 +1,127 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import logging
+import threading
+from typing import Any, Dict, List
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from adk_stale_agent.settings import GITHUB_TOKEN
+
+logger = logging.getLogger("google_adk." + __name__)
+
+_api_call_count = 0
+_counter_lock = threading.Lock()
+
+def get_api_call_count() -> int:
+  with _counter_lock:
+    return _api_call_count
+
+def reset_api_call_count() -> None:
+  global _api_call_count
+  with _counter_lock:
+    _api_call_count = 0
+
+def _increment_api_call_count() -> None:
+  global _api_call_count
+  with _counter_lock:
+    _api_call_count += 1
+
+retry_strategy = Retry(
+    total=6, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["GET", "POST", "PATCH", "DELETE"]
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+_session = requests.Session()
+_session.mount("https://", adapter)
+_session.headers.update({
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github.v3+json",
+})
+
+def get_request(url: str, params: Dict[str, Any] = None) -> Any:
+  _increment_api_call_count()
+  response = _session.get(url, params=params or {}, timeout=60)
+  response.raise_for_status()
+  return response.json()
+
+def post_request(url: str, payload: Any) -> Any:
+  _increment_api_call_count()
+  response = _session.post(url, json=payload, timeout=60)
+  response.raise_for_status()
+  return response.json()
+
+def error_response(error_message: str) -> Dict[str, Any]:
+  return {"status": "error", "message": error_message}
+
+def get_repository_maintainers(owner: str, repo: str) -> List[str]:
+  """Fetches all users with push/maintain access."""
+  url = f"https://api.github.com/repos/{owner}/{repo}/collaborators"
+  data = get_request(url, {"permission": "push"})
+  return [user["login"] for user in data]
+
+def get_issue_comments(owner: str, repo: str, issue_number: int) -> List[Dict]:
+  """Fetches all comments for a specific issue via REST."""
+  url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
+  return get_request(url, params={"per_page": 100})
+
+def get_target_issues(owner: str, repo: str) -> List[int]:
+  """
+  Fetches issues. 
+  If INITIAL_FULL_SCAN is True, fetches ALL open issues.
+  If False, fetches only issues updated in the last 24 hours using the 'since' parameter.
+  """
+  from adk_stale_agent.settings import INITIAL_FULL_SCAN
+  from datetime import datetime, timedelta, timezone
+
+  url = f"https://api.github.com/repos/{owner}/{repo}/issues"
+  params = {
+      "state": "open",
+      "per_page": 100,
+  }
+
+  if INITIAL_FULL_SCAN:
+      logger.info("INITIAL_FULL_SCAN is True. Fetching ALL open issues...")
+  else:
+      yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+      params["since"] = yesterday
+      logger.info(f"Daily mode: Fetching issues updated since {yesterday}...")
+
+  issue_numbers = []
+  page = 1
+
+  while True:
+    params["page"] = page
+    try:
+      items = get_request(url, params=params)
+      
+      if not items: 
+          break
+      
+      for item in items:
+        # The Issues API returns both Issues and Pull Requests.
+        # We check for the 'pull_request' key to filter PRs out if we only want issues.
+        if "pull_request" not in item:
+          issue_numbers.append(item["number"])
+          
+      if len(items) < 100: 
+          break  # Reached the last page
+          
+      page += 1
+    except requests.exceptions.RequestException as e:
+      logger.error(f"Failed to fetch issues on page {page}: {e}")
+      break
+
+  return issue_numbers

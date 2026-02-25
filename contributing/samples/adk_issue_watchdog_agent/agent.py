@@ -1,0 +1,74 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import logging
+import os
+from typing import Any
+from google.adk.agents.llm_agent import Agent
+from requests.exceptions import RequestException
+
+from adk_stale_agent.settings import (
+    GITHUB_BASE_URL, OWNER, REPO, LLM_MODEL_NAME, SPAM_LABEL_NAME
+)
+from adk_stale_agent.utils import post_request, error_response
+
+logger = logging.getLogger("google_adk." + __name__)
+
+def load_prompt_template(filename: str) -> str:
+  file_path = os.path.join(os.path.dirname(__file__), filename)
+  with open(file_path, "r") as f:
+    return f.read()
+
+PROMPT_TEMPLATE = load_prompt_template("PROMPT_INSTRUCTION.txt")
+
+# --- Tools ---
+
+def flag_issue_as_spam(item_number: int, detection_reason: str) -> dict[str, Any]:
+  """
+  Flags an issue as spam by adding a label and leaving a comment for maintainers.
+
+  Args:
+      item_number (int): The GitHub issue number.
+      detection_reason (str): The explanation of what the spam is.
+  """
+  logger.info(f"Flagging #{item_number} as SPAM. Reason: {detection_reason}")
+  
+  label_url = f"{GITHUB_BASE_URL}/repos/{OWNER}/{REPO}/issues/{item_number}/labels"
+  comment_url = f"{GITHUB_BASE_URL}/repos/{OWNER}/{REPO}/issues/{item_number}/comments"
+  
+  alert_body = (
+      f"🚨 **Automated Spam Detection Alert** 🚨\n"
+      f"@maintainers, a suspected spam comment was detected in this thread.\n\n"
+      f"**Reason:** {detection_reason}"
+  )
+
+  try:
+    # 1. Add Label
+    post_request(label_url, {"labels": [SPAM_LABEL_NAME]})
+    # 2. Post Alert Comment
+    post_request(comment_url, {"body": alert_body})
+    return {"status": "success", "message": "Maintainers alerted successfully."}
+  except RequestException as e:
+    return error_response(f"Error flagging issue: {e}")
+
+root_agent = Agent(
+    model=LLM_MODEL_NAME,
+    name="spam_auditor_agent",
+    description="Audits issue comments for spam.",
+    instruction=PROMPT_TEMPLATE.format(
+        OWNER=OWNER,
+        REPO=REPO,
+    ),
+    tools=[flag_issue_as_spam],
+)
