@@ -20,8 +20,8 @@ from typing import List
 from typing import Tuple
 
 from adk_issue_monitoring_agent.agent import root_agent
-from adk_issue_monitoring_agent.settings import BOT_NAME
 from adk_issue_monitoring_agent.settings import BOT_ALERT_SIGNATURE
+from adk_issue_monitoring_agent.settings import BOT_NAME
 from adk_issue_monitoring_agent.settings import CONCURRENCY_LIMIT
 from adk_issue_monitoring_agent.settings import OWNER
 from adk_issue_monitoring_agent.settings import REPO

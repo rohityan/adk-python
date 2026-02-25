@@ -33,7 +33,9 @@ LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "gemini-2.5-flash")
 SPAM_LABEL_NAME = os.getenv("SPAM_LABEL_NAME", "spam")
 CONCURRENCY_LIMIT = int(os.getenv("CONCURRENCY_LIMIT", 3))
 BOT_NAME = os.getenv("BOT_NAME", "adk-bot")
-BOT_ALERT_SIGNATURE = os.getenv("BOT_ALERT_SIGNATURE", "🚨 **Automated Spam Detection Alert** 🚨")
+BOT_ALERT_SIGNATURE = os.getenv(
+    "BOT_ALERT_SIGNATURE", "🚨 **Automated Spam Detection Alert** 🚨"
+)
 SLEEP_BETWEEN_CHUNKS = float(os.getenv("SLEEP_BETWEEN_CHUNKS", 1.5))
 
 
