@@ -21,6 +21,7 @@ from typing import Tuple
 
 from adk_issue_monitoring_agent.agent import root_agent
 from adk_issue_monitoring_agent.settings import BOT_NAME
+from adk_issue_monitoring_agent.settings import BOT_ALERT_SIGNATURE
 from adk_issue_monitoring_agent.settings import CONCURRENCY_LIMIT
 from adk_issue_monitoring_agent.settings import OWNER
 from adk_issue_monitoring_agent.settings import REPO
@@ -47,8 +48,6 @@ async def process_single_issue(
 ) -> Tuple[float, int]:
   start_time = time.perf_counter()
   start_api_calls = get_api_call_count()
-
-  BOT_ALERT_SIGNATURE = "🚨 **Automated Spam Detection Alert** 🚨"
 
   try:
     # 1. Fetch the main issue AND the comments

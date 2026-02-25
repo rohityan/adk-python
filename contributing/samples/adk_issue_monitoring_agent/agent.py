@@ -16,6 +16,7 @@ import logging
 import os
 from typing import Any
 
+from adk_issue_monitoring_agent.settings import BOT_ALERT_SIGNATURE
 from adk_issue_monitoring_agent.settings import GITHUB_BASE_URL
 from adk_issue_monitoring_agent.settings import LLM_MODEL_NAME
 from adk_issue_monitoring_agent.settings import OWNER
@@ -60,7 +61,7 @@ def flag_issue_as_spam(
   )
 
   alert_body = (
-      "🚨 **Automated Spam Detection Alert** 🚨\n"
+      f"{BOT_ALERT_SIGNATURE}\n"
       "@maintainers, a suspected spam comment was detected in this thread.\n\n"
       f"**Reason:** {detection_reason}"
   )

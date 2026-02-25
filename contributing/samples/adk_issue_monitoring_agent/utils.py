@@ -156,7 +156,6 @@ def get_target_issues(owner: str, repo: str) -> List[int]:
 
       for item in items:
         if "pull_request" not in item:
-          issue_numbers.append(item["number"])
           # Extract all the label names on this issue
           current_labels = [label["name"] for label in item.get("labels", [])]
 
