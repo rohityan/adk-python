@@ -16,8 +16,6 @@ import asyncio
 import logging
 import re
 import time
-from typing import List
-from typing import Tuple
 
 from adk_issue_monitoring_agent.agent import root_agent
 from adk_issue_monitoring_agent.settings import BOT_ALERT_SIGNATURE
@@ -39,13 +37,13 @@ from google.genai import types
 logs.setup_adk_logger(level=logging.INFO)
 logger = logging.getLogger("google_adk." + __name__)
 
-APP_NAME = "spam_bot_app"
-USER_ID = "spam_bot_user"
+APP_NAME = "issue_monitoring_app"
+USER_ID = "issue_monitoring_user"
 
 
 async def process_single_issue(
-    issue_number: int, maintainers: List[str]
-) -> Tuple[float, int]:
+    issue_number: int, maintainers: list[str]
+) -> tuple[float, int]:
   start_time = time.perf_counter()
   start_api_calls = get_api_call_count()
 
@@ -54,7 +52,7 @@ async def process_single_issue(
     issue = get_issue_details(OWNER, REPO, issue_number)
     comments = get_issue_comments(OWNER, REPO, issue_number)
 
-    user_comments = []
+    user_comments =[]
 
     # 2. Process the ORIGINAL ISSUE DESCRIPTION first!
     issue_author = issue.get("user", {}).get("login", "")
@@ -158,7 +156,7 @@ async def process_single_issue(
 
 
 async def main():
-  logger.info(f"--- Starting Spam Bot for {OWNER}/{REPO} ---")
+  logger.info(f"--- Starting Issue Monitoring Agent for {OWNER}/{REPO} ---")
   reset_api_call_count()
 
   # Step 1: Fetch Maintainers
@@ -188,7 +186,7 @@ async def main():
     chunk = all_issues[i : i + CONCURRENCY_LIMIT]
     logger.info(f"Processing chunk: {chunk}")
 
-    tasks = [
+    tasks =[
         process_single_issue(issue_num, maintainers) for issue_num in chunk
     ]
     await asyncio.gather(*tasks)

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import logging
-import threading
 from typing import Any
 from typing import Dict
 from typing import List
@@ -28,31 +27,25 @@ from urllib3.util.retry import Retry
 logger = logging.getLogger("google_adk." + __name__)
 
 _api_call_count = 0
-_counter_lock = threading.Lock()
-
 
 def get_api_call_count() -> int:
-  with _counter_lock:
-    return _api_call_count
-
+  return _api_call_count
 
 def reset_api_call_count() -> None:
   global _api_call_count
-  with _counter_lock:
-    _api_call_count = 0
-
+  _api_call_count = 0
 
 def _increment_api_call_count() -> None:
   global _api_call_count
-  with _counter_lock:
-    _api_call_count += 1
+  _api_call_count += 1
 
 
 retry_strategy = Retry(
     total=6,
     backoff_factor=2,
     status_forcelist=[429, 500, 502, 503, 504],
-    allowed_methods=["GET", "POST", "PATCH", "DELETE"],
+    # Removed non-idempotent methods (POST, PATCH) to prevent duplicate actions
+    allowed_methods=["GET", "DELETE"],
 )
 adapter = HTTPAdapter(max_retries=retry_strategy)
 _session = requests.Session()
@@ -63,7 +56,7 @@ _session.headers.update({
 })
 
 
-def get_request(url: str, params: Dict[str, Any] = None) -> Any:
+def get_request(url: str, params: dict[str, Any] | None = None) -> Any:
   _increment_api_call_count()
   response = _session.get(url, params=params or {}, timeout=60)
   response.raise_for_status()
@@ -77,11 +70,11 @@ def post_request(url: str, payload: Any) -> Any:
   return response.json()
 
 
-def error_response(error_message: str) -> Dict[str, Any]:
+def error_response(error_message: str) -> dict[str, Any]:
   return {"status": "error", "message": error_message}
 
 
-def get_repository_maintainers(owner: str, repo: str) -> List[str]:
+def get_repository_maintainers(owner: str, repo: str) -> list[str]:
   """Fetches all users with push/maintain access."""
   url = f"https://api.github.com/repos/{owner}/{repo}/collaborators"
   data = get_request(url, {"permission": "push"})
@@ -90,16 +83,18 @@ def get_repository_maintainers(owner: str, repo: str) -> List[str]:
 
 def get_issue_details(
     owner: str, repo: str, issue_number: int
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
   """Fetches the main issue object to get the original description (body)."""
   url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
   return get_request(url)
 
 
-def get_issue_comments(owner: str, repo: str, issue_number: int) -> List[Dict]:
+def get_issue_comments(
+    owner: str, repo: str, issue_number: int
+) -> list[dict[str, Any]]:
   """Fetches ALL comments for a specific issue, handling pagination."""
   url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
-  all_comments = []
+  all_comments =[]
   page = 1
 
   while True:
@@ -116,7 +111,7 @@ def get_issue_comments(owner: str, repo: str, issue_number: int) -> List[Dict]:
   return all_comments
 
 
-def get_target_issues(owner: str, repo: str) -> List[int]:
+def get_target_issues(owner: str, repo: str) -> list[int]:
   """
   Fetches issues.
   If INITIAL_FULL_SCAN is True, fetches ALL open issues.
@@ -125,8 +120,6 @@ def get_target_issues(owner: str, repo: str) -> List[int]:
   from datetime import datetime
   from datetime import timedelta
   from datetime import timezone
-
-  from adk_issue_monitoring_agent.settings import INITIAL_FULL_SCAN
 
   url = f"https://api.github.com/repos/{owner}/{repo}/issues"
   params = {
@@ -143,7 +136,7 @@ def get_target_issues(owner: str, repo: str) -> List[int]:
     params["since"] = yesterday
     logger.info(f"Daily mode: Fetching issues updated since {yesterday}...")
 
-  issue_numbers = []
+  issue_numbers =[]
   page = 1
 
   while True:
@@ -157,7 +150,7 @@ def get_target_issues(owner: str, repo: str) -> List[int]:
       for item in items:
         if "pull_request" not in item:
           # Extract all the label names on this issue
-          current_labels = [label["name"] for label in item.get("labels", [])]
+          current_labels = [label["name"] for label in item.get("labels",[])]
 
           # Only add the issue if it DOES NOT already have the spam label
           if SPAM_LABEL_NAME not in current_labels:
@@ -168,7 +161,7 @@ def get_target_issues(owner: str, repo: str) -> List[int]:
             )
 
       if len(items) < 100:
-        break  # Reached the last page
+        break  
 
       page += 1
     except requests.exceptions.RequestException as e:
