@@ -23,7 +23,7 @@ from adk_issue_monitoring_agent.settings import OWNER
 from adk_issue_monitoring_agent.settings import REPO
 from adk_issue_monitoring_agent.settings import SPAM_LABEL_NAME
 from adk_issue_monitoring_agent.utils import error_response
-from adk_issue_monitoring_agent.utils import get_issue_comments 
+from adk_issue_monitoring_agent.utils import get_issue_comments
 from adk_issue_monitoring_agent.utils import get_issue_details
 from adk_issue_monitoring_agent.utils import post_request
 from google.adk.agents.llm_agent import Agent
@@ -74,9 +74,13 @@ def flag_issue_as_spam(
     issue = get_issue_details(OWNER, REPO, item_number)
     comments = get_issue_comments(OWNER, REPO, item_number)
 
-    current_labels = [label["name"].lower() for label in issue.get("labels",[])]
+    current_labels = [
+        label["name"].lower() for label in issue.get("labels", [])
+    ]
     is_labeled = SPAM_LABEL_NAME.lower() in current_labels
-    is_commented = any(BOT_ALERT_SIGNATURE in c.get("body", "") for c in comments)
+    is_commented = any(
+        BOT_ALERT_SIGNATURE in c.get("body", "") for c in comments
+    )
 
     if is_labeled and is_commented:
       logger.info(f"#{item_number} is already labeled and commented. Skipping.")
@@ -84,10 +88,12 @@ def flag_issue_as_spam(
       post_request(comment_url, {"body": alert_body})
       logger.info(f"Successfully posted spam alert comment to #{item_number}.")
     elif not is_labeled and is_commented:
-      post_request(label_url, {"labels":[SPAM_LABEL_NAME]})
-      logger.info(f"Successfully added '{SPAM_LABEL_NAME}' label to #{item_number}.")
+      post_request(label_url, {"labels": [SPAM_LABEL_NAME]})
+      logger.info(
+          f"Successfully added '{SPAM_LABEL_NAME}' label to #{item_number}."
+      )
     else:
-      post_request(label_url, {"labels":[SPAM_LABEL_NAME]})
+      post_request(label_url, {"labels": [SPAM_LABEL_NAME]})
       post_request(comment_url, {"body": alert_body})
       logger.info(f"Successfully fully flagged #{item_number}.")
 

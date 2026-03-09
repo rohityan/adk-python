@@ -52,7 +52,7 @@ async def process_single_issue(
     issue = get_issue_details(OWNER, REPO, issue_number)
     comments = get_issue_comments(OWNER, REPO, issue_number)
 
-    user_comments =[]
+    user_comments = []
 
     # 2. Process the ORIGINAL ISSUE DESCRIPTION first!
     issue_author = issue.get("user", {}).get("login", "")
@@ -186,7 +186,7 @@ async def main():
     chunk = all_issues[i : i + CONCURRENCY_LIMIT]
     logger.info(f"Processing chunk: {chunk}")
 
-    tasks =[
+    tasks = [
         process_single_issue(issue_num, maintainers) for issue_num in chunk
     ]
     await asyncio.gather(*tasks)

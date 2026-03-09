@@ -28,12 +28,15 @@ logger = logging.getLogger("google_adk." + __name__)
 
 _api_call_count = 0
 
+
 def get_api_call_count() -> int:
   return _api_call_count
+
 
 def reset_api_call_count() -> None:
   global _api_call_count
   _api_call_count = 0
+
 
 def _increment_api_call_count() -> None:
   global _api_call_count
@@ -94,7 +97,7 @@ def get_issue_comments(
 ) -> list[dict[str, Any]]:
   """Fetches ALL comments for a specific issue, handling pagination."""
   url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
-  all_comments =[]
+  all_comments = []
   page = 1
 
   while True:
@@ -136,7 +139,7 @@ def get_target_issues(owner: str, repo: str) -> list[int]:
     params["since"] = yesterday
     logger.info(f"Daily mode: Fetching issues updated since {yesterday}...")
 
-  issue_numbers =[]
+  issue_numbers = []
   page = 1
 
   while True:
@@ -150,7 +153,7 @@ def get_target_issues(owner: str, repo: str) -> list[int]:
       for item in items:
         if "pull_request" not in item:
           # Extract all the label names on this issue
-          current_labels = [label["name"] for label in item.get("labels",[])]
+          current_labels = [label["name"] for label in item.get("labels", [])]
 
           # Only add the issue if it DOES NOT already have the spam label
           if SPAM_LABEL_NAME not in current_labels:
@@ -161,7 +164,7 @@ def get_target_issues(owner: str, repo: str) -> list[int]:
             )
 
       if len(items) < 100:
-        break  
+        break
 
       page += 1
     except requests.exceptions.RequestException as e:
