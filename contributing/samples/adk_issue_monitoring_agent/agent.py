@@ -63,10 +63,13 @@ def flag_issue_as_spam(
       f"{GITHUB_BASE_URL}/repos/{OWNER}/{REPO}/issues/{item_number}/comments"
   )
 
+  safe_reason = detection_reason.replace("```", "'''")
+
   alert_body = (
       f"{BOT_ALERT_SIGNATURE}\n"
       "@maintainers, a suspected spam comment was detected in this thread.\n\n"
-      f"**Reason:** {detection_reason}"
+      "**Reason:**\n"
+      f"```text\n{safe_reason}\n```"
   )
 
   try:

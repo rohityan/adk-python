@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import lru_cache
 import logging
 from typing import Any
-from typing import Dict
-from typing import List
 
 from adk_issue_monitoring_agent.settings import GITHUB_TOKEN
 from adk_issue_monitoring_agent.settings import INITIAL_FULL_SCAN
@@ -47,7 +46,6 @@ retry_strategy = Retry(
     total=6,
     backoff_factor=2,
     status_forcelist=[429, 500, 502, 503, 504],
-    # Removed non-idempotent methods (POST, PATCH) to prevent duplicate actions
     allowed_methods=["GET", "DELETE"],
 )
 adapter = HTTPAdapter(max_retries=retry_strategy)
@@ -84,6 +82,7 @@ def get_repository_maintainers(owner: str, repo: str) -> list[str]:
   return [user["login"] for user in data]
 
 
+@lru_cache(maxsize=1000)
 def get_issue_details(
     owner: str, repo: str, issue_number: int
 ) -> dict[str, Any]:
@@ -92,6 +91,7 @@ def get_issue_details(
   return get_request(url)
 
 
+@lru_cache(maxsize=1000)
 def get_issue_comments(
     owner: str, repo: str, issue_number: int
 ) -> list[dict[str, Any]]:

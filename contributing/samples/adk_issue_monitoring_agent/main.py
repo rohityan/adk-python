@@ -42,7 +42,7 @@ USER_ID = "issue_monitoring_user"
 
 
 async def process_single_issue(
-    issue_number: int, maintainers: list[str]
+    runner: InMemoryRunner, issue_number: int, maintainers: list[str]
 ) -> tuple[float, int]:
   start_time = time.perf_counter()
   start_api_calls = get_api_call_count()
@@ -125,7 +125,6 @@ async def process_single_issue(
         f" #{issue_number}:\n\n{compiled_comments}"
     )
 
-    runner = InMemoryRunner(agent=root_agent, app_name=APP_NAME)
     session = await runner.session_service.create_session(
         user_id=USER_ID, app_name=APP_NAME
     )
@@ -181,13 +180,17 @@ async def main():
 
   logger.info(f"Found {total_count} issues to process.")
 
-  # Step 3: Iterate through issues async 3 at a time
+  # Initialize the runner ONCE for the entire run
+  runner = InMemoryRunner(agent=root_agent, app_name=APP_NAME)
+
+  # Step 3: Iterate through issues async 'CONCURRENCY_LIMIT' at a time
   for i in range(0, total_count, CONCURRENCY_LIMIT):
     chunk = all_issues[i : i + CONCURRENCY_LIMIT]
     logger.info(f"Processing chunk: {chunk}")
 
     tasks = [
-        process_single_issue(issue_num, maintainers) for issue_num in chunk
+        process_single_issue(runner, issue_num, maintainers)
+        for issue_num in chunk
     ]
     await asyncio.gather(*tasks)
 
